@@ -1,13 +1,39 @@
-import { createContext, useState, useContext } from 'react';
+import {
+  createContext,
+  useState,
+  useContext,
+  type ReactNode,
+  type ReactElement
+} from 'react';
 
-// 1. Create Cart Context (inside App.js)
-const CartContext = createContext();
+// 1. Define types
+type CartItem = {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+};
 
-// 2. Custom Provider Component
-const CartProvider = ({ children }) => {
-  const [cart, setCart] = useState([]);
+type CartContextType = {
+  cart: CartItem[];
+  addItem: (item: Omit<CartItem, 'quantity'>) => void;
+  removeItem: (id: number) => void;
+  clearCart: () => void;
+};
 
-  const addItem = (item) => {
+// 2. Create Context with default value
+const CartContext = createContext<CartContextType>({
+  cart: [],
+  addItem: () => { },
+  removeItem: () => { },
+  clearCart: () => { },
+});
+
+// 3. Type the Provider props
+const CartProvider = ({ children }: { children: ReactNode }): ReactElement => {
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  const addItem = (item: Omit<CartItem, 'quantity'>): void => {
     setCart((prevCart) => {
       const existingItem = prevCart.find((cartItem) => cartItem.id === item.id);
       if (existingItem) {
@@ -21,11 +47,11 @@ const CartProvider = ({ children }) => {
     });
   };
 
-  const removeItem = (id) => {
+  const removeItem = (id: number): void => {
     setCart((prevCart) => prevCart.filter((item) => item.id !== id));
   };
 
-  const clearCart = () => {
+  const clearCart = (): void => {
     setCart([]);
   };
 
@@ -36,8 +62,8 @@ const CartProvider = ({ children }) => {
   );
 };
 
-// 3. Custom Hook (also inside App.js)
-const useCart = () => {
+// 4. Custom hook with proper typing
+const useCart = (): CartContextType => {
   const context = useContext(CartContext);
   if (!context) {
     throw new Error('useCart must be used within a CartProvider');
@@ -45,9 +71,14 @@ const useCart = () => {
   return context;
 };
 
-// 4. Product Component
-const Product = ({ product }) => {
+// 5. Type Product props
+interface ProductProps {
+  product: Omit<CartItem, 'quantity'>;
+}
+
+const Product = ({ product }: ProductProps): ReactElement => {
   const { addItem } = useCart();
+
   return (
     <div>
       <h3>{product.name}</h3>
@@ -56,8 +87,8 @@ const Product = ({ product }) => {
   );
 };
 
-// 5. Cart Component
-const Cart = () => {
+// 6. Cart component
+const Cart = (): ReactElement => {
   const { cart, removeItem, clearCart } = useCart();
 
   return (
@@ -76,8 +107,8 @@ const Cart = () => {
   );
 };
 
-// 6. Main App Component
-export default function App() {
+// 7. Main App component
+export default function App(): ReactElement {
   const products = [
     { id: 1, name: 'Laptop', price: 999 },
     { id: 2, name: 'Phone', price: 699 },
@@ -89,15 +120,12 @@ export default function App() {
       <div style={{ padding: '20px' }}>
         <h1>Shop</h1>
         <div style={{ display: 'flex', gap: '40px' }}>
-          {/* Product List */}
           <div>
             <h2>Products</h2>
             {products.map((product) => (
               <Product key={product.id} product={product} />
             ))}
           </div>
-
-          {/* Cart */}
           <Cart />
         </div>
       </div>
