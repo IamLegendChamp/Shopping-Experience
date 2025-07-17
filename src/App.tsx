@@ -1,123 +1,106 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { FixedSizeList as List } from "react-window";
-import "./App.css";
+import { createContext, useState, useContext } from 'react';
 
-const mockWebSocket = (callback) => {
-  let id = 100;
-  const intervalId = setInterval(() => {
-    const newSale = {
-      id: id++,
-      product: `Product ${Math.floor(Math.random() * 10)}`,
-      amount: Math.floor(Math.random() * 1000),
-      timestamp: new Date().toISOString(),
-    };
-    callback(newSale);
-  }, 1000);
-  return () => clearInterval(intervalId);
-};
+// 1. Create Cart Context (inside App.js)
+const CartContext = createContext();
 
-const TableRow = ({ data, index, style }) => {
-  const product = data[index];
-  return (
-    <div style={style} className="table-row">
-      <div className="table-cell">{product.id}</div>
-      <div className="table-cell">{product.product}</div>
-      <div className="table-cell">{product.amount}</div>
-      <div className="table-cell">
-        {new Date(product.timestamp).toLocaleTimeString([], { hour12: false })}
-      </div>
-    </div>
-  );
-};
+// 2. Custom Provider Component
+const CartProvider = ({ children }) => {
+  const [cart, setCart] = useState([]);
 
-function DashboardWidget({ products, onChangeOrder, order }) {
-  return (
-    <div className="table-container">
-      <div className="table-header">
-        <div className="table-cell">ID</div>
-        <div className="table-cell">PRODUCT</div>
-        <div className="table-cell">
-          <button onClick={onChangeOrder}>
-            AMOUNT ({order === 'asc' ? '↑' : order === 'desc' ? '↓' : '⇅'})
-          </button>
-        </div>
-        <div className="table-cell">TIMESTAMP</div>
-      </div>
-      <List
-        height={400}
-        itemCount={products.length}
-        itemSize={35}
-        width="100%"
-        itemData={products}
-      >
-        {TableRow}
-      </List>
-    </div>
-  );
-};
-
-const App3 = () => {
-  const [allProducts, setAllProducts] = useState([]);
-  const [order, setOrder] = useState(null);
-  const [inputVal, setInputVal] = useState("");
-
-  // useEffect(() => {
-  //     const cleanup = mockWebSocket((newSale) => {
-  //         setAllProducts(prev => [...prev, newSale]);
-  //     });
-  //     return cleanup;
-  // }, []);
-
-  // Initial test data
-  useEffect(() => {
-    const initialData = Array.from({ length: 50 }, (_, i) => ({
-      id: i + 1,
-      product: `Product ${Math.floor(Math.random() * 10)}`,
-      amount: Math.floor(Math.random() * 1000),
-      timestamp: new Date().toISOString(),
-    }));
-    setAllProducts(initialData);
-  }, []);
-
-  const products = useMemo(() => {
-    let result = allProducts.filter(product =>
-      inputVal && Number(inputVal) > 0
-        ? product.amount > Number(inputVal)
-        : true
-    );
-
-    if (order === 'asc') {
-      result = [...result].sort((a, b) => a.amount - b.amount);
-    } else if (order === 'desc') {
-      result = [...result].sort((a, b) => b.amount - a.amount);
-    }
-
-    return result;
-  }, [allProducts, inputVal, order]);
-
-  const onChangeOrder = useCallback(() => {
-    setOrder(prev => {
-      if (prev === null) return 'asc';
-      if (prev === 'asc') return 'desc';
-      return null;
+  const addItem = (item) => {
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((cartItem) => cartItem.id === item.id);
+      if (existingItem) {
+        return prevCart.map((cartItem) =>
+          cartItem.id === item.id
+            ? { ...cartItem, quantity: cartItem.quantity + 1 }
+            : cartItem
+        );
+      }
+      return [...prevCart, { ...item, quantity: 1 }];
     });
-  }, []);
+  };
+
+  const removeItem = (id) => {
+    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+  };
 
   return (
-    <div className="app-container">
-      <input
-        type="text"
-        value={inputVal}
-        onChange={(e) => setInputVal(e.target.value)}
-        placeholder="Enter threshold"
-      />
-      <DashboardWidget
-        products={products}
-        order={order}
-        onChangeOrder={onChangeOrder}
-      />
+    <CartContext.Provider value={{ cart, addItem, removeItem, clearCart }}>
+      {children}
+    </CartContext.Provider>
+  );
+};
+
+// 3. Custom Hook (also inside App.js)
+const useCart = () => {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+};
+
+// 4. Product Component
+const Product = ({ product }) => {
+  const { addItem } = useCart();
+  return (
+    <div>
+      <h3>{product.name}</h3>
+      <button onClick={() => addItem(product)}>Add to Cart</button>
     </div>
   );
 };
 
-export default App3;
+// 5. Cart Component
+const Cart = () => {
+  const { cart, removeItem, clearCart } = useCart();
+
+  return (
+    <div>
+      <h2>Cart ({cart.length})</h2>
+      <ul>
+        {cart.map((item) => (
+          <li key={item.id}>
+            {item.name} (x{item.quantity})
+            <button onClick={() => removeItem(item.id)}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      <button onClick={clearCart}>Clear Cart</button>
+    </div>
+  );
+};
+
+// 6. Main App Component
+export default function App() {
+  const products = [
+    { id: 1, name: 'Laptop', price: 999 },
+    { id: 2, name: 'Phone', price: 699 },
+    { id: 3, name: 'Headphones', price: 149 },
+  ];
+
+  return (
+    <CartProvider>
+      <div style={{ padding: '20px' }}>
+        <h1>Shop</h1>
+        <div style={{ display: 'flex', gap: '40px' }}>
+          {/* Product List */}
+          <div>
+            <h2>Products</h2>
+            {products.map((product) => (
+              <Product key={product.id} product={product} />
+            ))}
+          </div>
+
+          {/* Cart */}
+          <Cart />
+        </div>
+      </div>
+    </CartProvider>
+  );
+}
